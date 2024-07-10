@@ -57,20 +57,20 @@ impl Cache {
     pub fn get_instance(
         &mut self,
         wasm: &[u8],
-        store: &Store,
-        import_object: &wasmer::ImportObject,
+        store: &mut Store,
+        import_object: &wasmer::Imports,
     ) -> Result<(wasmer::Instance, bool), Error> {
         let checksum = Checksum::generate(wasm);
         self.with_in_memory_cache(|in_memory_cache| {
             // lookup cache
             if let Some(module) = in_memory_cache.load(&checksum) {
-                return Ok((Instance::new(&module, &import_object).unwrap(), true));
+                return Ok((Instance::new(store, &module, &import_object).unwrap(), true));
             }
 
             // recompile
             let module = Module::new(store, &wasm).map_err(|_| Error::InstantiationError)?;
             let instance =
-                Instance::new(&module, &import_object).map_err(|_| Error::InstantiationError)?;
+                Instance::new(store, &module, &import_object).map_err(|_| Error::InstantiationError)?;
 
             in_memory_cache.store(&checksum, module);
 
@@ -85,7 +85,8 @@ mod tests {
     use std::io::{Read, Write};
     use std::process::Command;
     use tempfile::NamedTempFile;
-    use wasmer::{imports, Singlepass, Store, Universal};
+    use wasmer::imports;
+    use crate::store::make_store;
 
     fn wat2wasm(wat: impl AsRef<[u8]>) -> Vec<u8> {
         let mut input_file = NamedTempFile::new().unwrap();
@@ -105,11 +106,10 @@ mod tests {
     }
 
     fn get_instance_without_err(cache: &mut Cache, wasm: &[u8]) -> (wasmer::Instance, bool) {
-        let compiler = Singlepass::new();
-        let store = Store::new(&Universal::new(compiler).engine());
+        let mut store = make_store();
         let import_object = imports! {};
 
-        match cache.get_instance(&wasm, &store, &import_object) {
+        match cache.get_instance(&wasm, &mut store, &import_object) {
             Ok((instance, is_hit)) => (instance, is_hit),
             Err(_) => panic!("Fail to get instance"),
         }

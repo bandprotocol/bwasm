@@ -3,7 +3,7 @@ use crate::error::Error;
 use std::borrow::{Borrow, BorrowMut};
 use std::ptr::NonNull;
 use std::sync::{Arc, RwLock};
-use wasmer::{Instance, Memory, WasmerEnv};
+use wasmer::{AsStoreMut, Instance, Memory};
 use wasmer_middlewares::metering::{get_remaining_points, set_remaining_points, MeteringPoints};
 
 pub trait Querier {
@@ -43,7 +43,6 @@ impl<Q: Querier> ContextData<Q> {
     }
 }
 
-#[derive(WasmerEnv)]
 pub struct Environment<Q>
 where
     Q: Querier + 'static,
@@ -112,9 +111,9 @@ where
         callback(context_data)
     }
 
-    pub fn get_gas_left(&self) -> u64 {
+    pub fn get_gas_left(&self, store: &mut impl AsStoreMut) -> u64 {
         self.with_wasmer_instance(|instance| {
-            Ok(match get_remaining_points(instance) {
+            Ok(match get_remaining_points(store, instance) {
                 MeteringPoints::Remaining(count) => count,
                 MeteringPoints::Exhausted => 0,
             })
@@ -122,20 +121,20 @@ where
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
-    pub fn set_gas_left(&self, new_value: u64) {
+    pub fn set_gas_left(&self, store: &mut impl AsStoreMut, new_value: u64) {
         self.with_wasmer_instance(|instance| {
-            set_remaining_points(instance, new_value);
+            set_remaining_points(store, instance, new_value);
             Ok(())
         })
         .expect("Wasmer instance is not set. This is a bug in the lifecycle.")
     }
 
-    pub fn decrease_gas_left(&self, gas: u64) -> Result<(), Error> {
-        let gas_left = self.get_gas_left();
+    pub fn decrease_gas_left(&self, store: &mut impl AsStoreMut, gas: u64) -> Result<(), Error> {
+        let gas_left = self.get_gas_left(store);
         if gas > gas_left {
             Err(Error::OutOfGasError)
         } else {
-            self.set_gas_left(gas_left.saturating_sub(gas));
+            self.set_gas_left(store, gas_left.saturating_sub(gas));
             Ok(())
         }
     }
@@ -165,7 +164,7 @@ mod tests {
     };
 
     use tempfile::NamedTempFile;
-    use wasmer::{imports, Singlepass, Store, Universal};
+    use wasmer::{Engine, imports, Singlepass, Store};
 
     use crate::{
         cache::{Cache, CacheOptions},
@@ -250,10 +249,11 @@ mod tests {
               )"#,
         );
         let compiler = Singlepass::new();
-        let store = Store::new(&Universal::new(compiler).engine());
+        let engine: Engine = compiler.into();
+        let mut store = Store::new(engine);
         let import_object = imports! {};
         let mut cache = Cache::new(CacheOptions { cache_size: 10000 });
-        let (instance, _) = cache.get_instance(&wasm, &store, &import_object).unwrap();
+        let (instance, _) = cache.get_instance(&wasm, &mut store, &import_object).unwrap();
         env.set_wasmer_instance(Some(NonNull::from(&instance)));
         assert_eq!(Ok(()), env.with_wasmer_instance(|_| { Ok(()) }));
     }
@@ -267,19 +267,19 @@ mod tests {
                 (func $prepare (export "prepare"))
               )"#,
         );
-        let store = make_store();
+        let mut store = make_store();
         let import_object = imports! {};
         let mut cache = Cache::new(CacheOptions { cache_size: 10000 });
-        let (instance, _) = cache.get_instance(&wasm, &store, &import_object).unwrap();
+        let (instance, _) = cache.get_instance(&wasm, &mut store, &import_object).unwrap();
         env.set_wasmer_instance(Some(NonNull::from(&instance)));
 
-        assert_eq!(0, env.get_gas_left());
+        assert_eq!(0, env.get_gas_left(&mut store));
 
-        env.set_gas_left(10);
-        assert_eq!(10, env.get_gas_left());
+        env.set_gas_left(&mut store, 10);
+        assert_eq!(10, env.get_gas_left(&mut store));
 
-        assert_eq!(Error::OutOfGasError, env.decrease_gas_left(11).unwrap_err());
-        assert_eq!(Ok(()), env.decrease_gas_left(3));
-        assert_eq!(7, env.get_gas_left());
+        assert_eq!(Error::OutOfGasError, env.decrease_gas_left(&mut store, 11).unwrap_err());
+        assert_eq!(Ok(()), env.decrease_gas_left(&mut store, 3));
+        assert_eq!(7, env.get_gas_left(&mut store));
     }
 }

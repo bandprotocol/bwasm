@@ -5,8 +5,8 @@ edition = "2021"
 license = "Apache-2.0"
 name = "owasm-vm"
 readme = "README.md"
-repository = "https://github.com/bandprotocol/owasm/tree/master/packages/vm"
-version = "0.3.1"
+repository = "https://github.com/ODIN-PROTOCOL/owasm/tree/master/packages/vm"
+version = "0.4.0"
 
 [dependencies]
 assert_matches = "1.3.0"
@@ -18,5 +18,6 @@ tempfile = "3.1.0"
 wasm-instrument = { version = "0.4.0", default-features = false, features = [
   "sign_ext"
 ] }
-wasmer = {version = "2.3.0", default-features = false, features = ["singlepass", "compiler", "universal"]}
-wasmer-middlewares = "2.3.0"
+wasmer = {version = "=4.3.3", default-features = false, features = ["singlepass", "compiler"]}
+wasmer-middlewares = "=4.3.3"
+wasmer-types = "=4.3.3"

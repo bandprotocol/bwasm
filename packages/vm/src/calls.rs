@@ -18,13 +18,13 @@ where
     Q: Querier + 'static,
 {
     let owasm_env = Environment::new(querier);
-    let store = make_store();
-    let import_object = create_import_object(&store, owasm_env.clone());
+    let mut store = make_store();
+    let import_object = create_import_object(&mut store, owasm_env.clone());
 
-    let (instance, _) = cache.get_instance(code, &store, &import_object)?;
+    let (instance, _) = cache.get_instance(code, &mut store, &import_object)?;
     let instance_ptr = NonNull::from(&instance);
     owasm_env.set_wasmer_instance(Some(instance_ptr));
-    owasm_env.set_gas_left(gas_limit);
+    owasm_env.set_gas_left(&mut store, gas_limit);
 
     // get function and exec
     let entry = if is_prepare { "prepare" } else { "execute" };
@@ -32,21 +32,21 @@ where
         .exports
         .get_function(entry)
         .unwrap()
-        .native::<(), ()>()
+        .typed::<(), ()>(&mut store)
         .map_err(|_| Error::BadEntrySignatureError)?;
 
-    function.call().map_err(|runtime_err| {
+    function.call(&mut store).map_err(|runtime_err| {
         if let Ok(err) = runtime_err.downcast::<Error>() {
             return err;
         }
 
-        match get_remaining_points(&instance) {
+        match get_remaining_points(&mut store, &instance) {
             MeteringPoints::Remaining(_) => Error::RuntimeError,
             MeteringPoints::Exhausted => Error::OutOfGasError,
         }
     })?;
 
-    match get_remaining_points(&instance) {
+    match get_remaining_points(&mut store, &instance) {
         MeteringPoints::Remaining(count) => Ok(gas_limit.saturating_sub(count)),
         MeteringPoints::Exhausted => Err(Error::OutOfGasError),
     }

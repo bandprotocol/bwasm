@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use wasmer::wasmparser::Operator;
-use wasmer::{CompilerConfig, Singlepass, Store, Universal};
+use wasmer::{CompilerConfig, Engine, Singlepass, Store};
 use wasmer_middlewares::Metering;
 
 fn cost(operator: &Operator) -> u64 {
@@ -26,6 +26,6 @@ pub fn make_store() -> Store {
     let mut compiler = Singlepass::new();
     let metering = Arc::new(Metering::new(0, cost));
     compiler.push_middleware(metering);
-    let engine = Universal::new(compiler).engine();
-    Store::new(&engine)
+    let engine: Engine = compiler.into();
+    Store::new(engine)
 }

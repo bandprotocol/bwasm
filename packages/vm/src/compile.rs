@@ -166,7 +166,7 @@ mod tests {
             "0061736d", // magic bytes
             "01000000", // binary version (uint32)
             "05",       // section type (memory)
-            "05",       // section length
+            "07",       // section length
             "02",       // number of memories
             "0009",     // element of type "resizable_limits", min=9, max=unset
             "0009",     // element of type "resizable_limits", min=9, max=unset
