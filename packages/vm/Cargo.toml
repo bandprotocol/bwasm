@@ -18,6 +18,6 @@ tempfile = "3.1.0"
 wasm-instrument = { version = "0.4.0", default-features = false, features = [
   "sign_ext"
 ] }
-wasmer = {version = "=4.3.3", default-features = false, features = ["singlepass", "compiler"]}
-wasmer-middlewares = "=4.3.3"
-wasmer-types = "=4.3.3"
+wasmer = {version = "=4.2.6", default-features = false, features = ["singlepass", "compiler"]}
+wasmer-middlewares = "=4.2.6"
+wasmer-types = "=4.2.6"
