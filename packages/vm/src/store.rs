@@ -29,3 +29,11 @@ pub fn make_store() -> Store {
     let engine: Engine = compiler.into();
     Store::new(engine)
 }
+
+pub fn make_engine() -> Engine {
+    let mut compiler = Singlepass::new();
+    let metering = Arc::new(Metering::new(0, cost));
+    compiler.push_middleware(metering);
+    let engine: Engine = compiler.into();
+    engine
+}

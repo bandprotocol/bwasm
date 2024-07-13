@@ -1,10 +1,11 @@
-use crate::error::Error;
-
 use std::borrow::{Borrow, BorrowMut};
 use std::ptr::NonNull;
 use std::sync::{Arc, RwLock};
+
 use wasmer::{AsStoreMut, Instance, Memory};
-use wasmer_middlewares::metering::{get_remaining_points, set_remaining_points, MeteringPoints};
+use wasmer_middlewares::metering::{get_remaining_points, MeteringPoints, set_remaining_points};
+
+use crate::error::Error;
 
 pub trait Querier {
     /// Returns the maximum span size value.
@@ -164,12 +165,9 @@ mod tests {
     };
 
     use tempfile::NamedTempFile;
-    use wasmer::{Engine, imports, Singlepass, Store};
 
-    use crate::{
-        cache::{Cache, CacheOptions},
-        store::make_store,
-    };
+    use crate::cache::{Cache, CacheOptions};
+    use crate::store::make_engine;
 
     use super::*;
 
@@ -248,12 +246,9 @@ mod tests {
                 (func $prepare (export "prepare"))
               )"#,
         );
-        let compiler = Singlepass::new();
-        let engine: Engine = compiler.into();
-        let mut store = Store::new(engine);
-        let import_object = imports! {};
+        let engine = make_engine();
         let mut cache = Cache::new(CacheOptions { cache_size: 10000 });
-        let (instance, _) = cache.get_instance(&wasm, &mut store, &import_object).unwrap();
+        let (instance, _, _) = cache.get_instance(&wasm, engine, env.clone()).unwrap();
         env.set_wasmer_instance(Some(NonNull::from(&instance)));
         assert_eq!(Ok(()), env.with_wasmer_instance(|_| { Ok(()) }));
     }
@@ -267,10 +262,10 @@ mod tests {
                 (func $prepare (export "prepare"))
               )"#,
         );
-        let mut store = make_store();
-        let import_object = imports! {};
+
+        let engine = make_engine();
         let mut cache = Cache::new(CacheOptions { cache_size: 10000 });
-        let (instance, _) = cache.get_instance(&wasm, &mut store, &import_object).unwrap();
+        let (instance, mut store, _) = cache.get_instance(&wasm, engine, env.clone()).unwrap();
         env.set_wasmer_instance(Some(NonNull::from(&instance)));
 
         assert_eq!(0, env.get_gas_left(&mut store));

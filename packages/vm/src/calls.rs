@@ -1,11 +1,11 @@
+use std::ptr::NonNull;
+
+use wasmer_middlewares::metering::{get_remaining_points, MeteringPoints};
+
 use crate::cache::Cache;
 use crate::error::Error;
-use crate::imports::create_import_object;
-use crate::store::make_store;
+use crate::store::make_engine;
 use crate::vm::{Environment, Querier};
-
-use std::ptr::NonNull;
-use wasmer_middlewares::metering::{get_remaining_points, MeteringPoints};
 
 pub fn run<Q>(
     cache: &mut Cache,
@@ -18,10 +18,9 @@ where
     Q: Querier + 'static,
 {
     let owasm_env = Environment::new(querier);
-    let mut store = make_store();
-    let import_object = create_import_object(&mut store, owasm_env.clone());
+    let engine = make_engine();
 
-    let (instance, _) = cache.get_instance(code, &mut store, &import_object)?;
+    let (instance, mut store, _) = cache.get_instance(code, engine, owasm_env.clone())?;
     let instance_ptr = NonNull::from(&instance);
     owasm_env.set_wasmer_instance(Some(instance_ptr));
     owasm_env.set_gas_left(&mut store, gas_limit);
@@ -54,13 +53,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::cache::CacheOptions;
-
-    use super::*;
-    use crate::compile::compile;
     use std::io::{Read, Write};
     use std::process::Command;
+
     use tempfile::NamedTempFile;
+
+    use crate::cache::CacheOptions;
+    use crate::compile::compile;
+
+    use super::*;
 
     pub struct MockQuerier {}
 

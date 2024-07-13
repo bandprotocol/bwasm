@@ -328,7 +328,7 @@ mod test {
 
     use crate::cache::{Cache, CacheOptions};
     use crate::compile::compile;
-    use crate::store::make_store;
+    use crate::store::{make_engine, make_store};
 
     use std::io::{Read, Write};
     use std::process::Command;
@@ -411,12 +411,9 @@ mod test {
 
         let querier = MockQuerier {};
         let owasm_env = Environment::new(querier);
-        let mut store = make_store();
-        let import_object = create_import_object(&mut store, owasm_env.clone());
+        let engine = make_engine();
         let mut cache = Cache::new(CacheOptions { cache_size: 10000 });
-        let (instance, _) = cache.get_instance(&code, &mut store, &import_object).unwrap();
-
-
+        let (instance, store, _) = cache.get_instance(&code, engine, owasm_env.clone()).unwrap();
 
         return (owasm_env, instance, store);
     }
